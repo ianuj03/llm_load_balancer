@@ -1,0 +1,5 @@
+*~
+depend/**
+config/config.json
+**/*.pyc
+.DS_Store

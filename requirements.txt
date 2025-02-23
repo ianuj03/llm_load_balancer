@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+httpx
+aisuite[all]
+boto3
+docstring-parser

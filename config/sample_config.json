@@ -1,0 +1,43 @@
+{
+  "keys": [
+    {
+		"provider": {
+			"openai": {"api_key": ""}
+		},
+      "api_key": "",
+      "region": "us-east",
+      "rate_limit": 3,
+      "global_window": 60,
+      "models": {
+        "default-model": {
+          "token_limit": 50000,
+          "window": 60
+        },
+        "openai:gpt-4o": {
+          "token_limit": 20000,
+          "window": 60
+        }
+      }
+    },
+    {
+		"provider": {
+			"openai": {"api_key": ""}
+		},
+      "api_key": "",
+      "region": "eu-west",
+      "rate_limit": 3,
+      "global_window": 60,
+      "models": {
+        "default-model": {
+          "token_limit": 50000,
+          "window": 60
+        },
+        "openai:gpt-4o": {
+          "token_limit": 20000,
+          "window": 60
+        }
+      }
+    }
+  ]
+}
+
