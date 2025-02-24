@@ -19,14 +19,12 @@ async def llm_endpoint(request: LLMRequest):
     tokens_needed = estimate_tokens(request.prompt)
     model = request.model
 
-    # Select a key based on region, model support, and usage limits.
-    key = await select_best_key(region, model, tokens_needed)
+    key = await select_best_key(model, tokens_needed) # region, 
     print(key)
     if not key:
         raise HTTPException(status_code=429, detail="No available keys; please try again later.")
-
     # Update usage counters inside a lock to avoid race conditions.
-    async with key_update_lock:
+    async with key_update_lock: 
         key["current_requests"] += 1
         key["current_tokens"] += tokens_needed
 
