@@ -2,52 +2,53 @@ import time
 
 KEY_POOL = {}
 
-ROUND_ROBIN_INDEX = 0
+ROUND_ROBIN_INDEX = {}
 
 def init_key_pool(config):
     current_time = time.time()
-    for key in config.get("keys", []):
-        key["current_requests"] = 0
-        key["health_status"] = "healthy"
-        global_window = key.get("global_window", 60)
-        key["global_reset_time"] = current_time + global_window
+    # config["keys"] is now a dictionary where each key is a model name
+    for model_name, keys_list in config.get("keys", {}).items():
+        KEY_POOL[model_name] = []
+        ROUND_ROBIN_INDEX[model_name] = 0
+        for key in keys_list:
+            key["current_requests"] = 0
+            key["health_status"] = "healthy"
+            global_window = key.get("global_window", 60)
+            key["global_reset_time"] = current_time + global_window
 
-        for model_name, model_params in key.get("models", {}).items():
-            model_params["current_tokens"] = 0
-            model_params["reset_time"] = current_time + model_params.get("window", 60)
-        KEY_POOL[key["api_key"]] = key
+            # Here we assume the key has top-level token limit and window values.
+            key["current_tokens"] = 0
+            key["reset_time"] = current_time + key.get("window", 60)
+            KEY_POOL[model_name].append(key)
+
 
 def select_best_key(request_region, model, estimated_tokens):
-    global ROUND_ROBIN_INDEX
     current_time = time.time()
+    # Retrieve keys for the requested model.
+    model_keys = KEY_POOL.get(model, [])
     candidates = []
     
-    for key in KEY_POOL.values():
-        # Check if the key supports the requested model.
-        if model not in key.get("models", {}):
-            continue
-
+    for key in model_keys:
         # Reset global counters if the window has passed.
         if current_time >= key["global_reset_time"]:
             key["current_requests"] = 0
             key["global_reset_time"] = current_time + key.get("global_window", 60)
             key["health_status"] = "healthy"
 
-        # Check if the key's global rate limit has been exceeded.
+        # Skip if the key's global rate limit is exceeded.
         if (key["rate_limit"] - key["current_requests"]) <= 0:
             continue
 
-        # Model-specific counters.
-        model_data = key["models"][model]
-        if current_time >= model_data["reset_time"]:
-            model_data["current_tokens"] = 0
-            model_data["reset_time"] = current_time + model_data.get("window", 60)
+        # Reset model-specific tokens if the window has passed.
+        if current_time >= key["reset_time"]:
+            key["current_tokens"] = 0
+            key["reset_time"] = current_time + key.get("window", 60)
 
         # Check if the key has enough token capacity.
-        if (model_data["token_limit"] - model_data["current_tokens"]) >= estimated_tokens:
+        if (key["token_limit"] - key["current_tokens"]) >= estimated_tokens:
             candidates.append(key)
 
-    # keys from the requested region for latency
+    # Filter by region if specified.
     if request_region:
         regional_candidates = [k for k in candidates if k.get("region") == request_region]
     else:
@@ -58,10 +59,13 @@ def select_best_key(request_region, model, estimated_tokens):
     if not selected_candidates:
         return None
 
-    # round-robin load balancing.
+    # Sort candidates by their average latency (if available) so that lower latency keys are prioritized.
     selected_candidates.sort(key=lambda k: k.get("avg_latency", float('inf')))
-    index = ROUND_ROBIN_INDEX % len(selected_candidates)
+
+    # Use a round-robin index specific to this model.
+    index = ROUND_ROBIN_INDEX[model] % len(selected_candidates)
     selected_key = selected_candidates[index]
-    ROUND_ROBIN_INDEX += 1 
+    ROUND_ROBIN_INDEX[model] += 1
+
     return selected_key
 

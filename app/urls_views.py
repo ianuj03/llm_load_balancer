@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from .key_pool import select_best_key
 from .utils import estimate_tokens
 from aisuite.client import Client
+import json
 
 router = APIRouter()
 
@@ -26,7 +27,7 @@ async def llm_endpoint(request: LLMRequest):
 
     # Update usage counters.
     key["current_requests"] += 1
-    key["models"][model]["current_tokens"] += tokens_needed
+    key["current_tokens"] += tokens_needed
 
     try:
         # Instantiate the client using the provider configuration from our key.
@@ -45,6 +46,11 @@ async def llm_endpoint(request: LLMRequest):
             messages=messages
         )
         latency = time.time() - start_time
+
+        actual_prompt_tokens = result.usage.prompt_tokens
+        actual_completion_tokens = result.usage.completion_tokens
+        actual_total_tokens = result.usage.total_tokens
+        key["current_tokens"] += actual_total_tokens - tokens_needed 
 
         # Update key's average latency metric.
         # For a simple weighted average, if 'avg_latency' exists, combine it with the new value.
